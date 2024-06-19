@@ -28,14 +28,6 @@ else()
   add_definitions(-Wno-sign-compare)
 endif()
 
-if(ENABLE_NEWS)
-  add_definitions(-DENABLE_NEWS)
-endif()
-
-if(ENABLE_UPDATER)
-  add_definitions(-DENABLE_UPDATER)
-endif()
-
 if(WIN32)
   # Needed to include icons in win32 .rc file
   include_directories(..)
@@ -49,57 +41,12 @@ if(REQUIRE_CURL AND NOT USE_SHARED_CURL AND CURL_STATICLIB)
 endif()
 
 ######################################################################
-# Special versions (full/trial, devmode, UI/CLI, etc.)
-
-if(NOT ENABLE_TRIAL_MODE)
-  add_definitions(-DENABLE_SAVE)
-else()
-  add_definitions(-DENABLE_TRIAL_MODE)
-endif()
-
-if(ENABLE_DRM)
-  add_definitions(-DENABLE_DRM)
-  add_definitions(-DENABLE_SAVE)
-endif()
-
-if(ENABLE_DEVMODE)
-  add_definitions(-DENABLE_DEVMODE)
-endif()
-
-if(ENABLE_UI)
-  add_definitions(-DENABLE_UI)
-endif()
-
-if(ENABLE_UI AND (NOT ENABLE_TRIAL_MODE OR ENABLE_DRM))
-  set(ENABLE_DATA_RECOVERY on)
-  add_definitions(-DENABLE_DATA_RECOVERY)
-else()
-  set(ENABLE_DATA_RECOVERY off)
-endif()
-
-if(ENABLE_SCRIPTING)
-  # Needed for "app" and "main"
-  add_definitions(-DENABLE_SCRIPTING)
-endif()
-
-if(ENABLE_WEBSOCKET)
-  # Needed for "app" and "main"
-  add_definitions(-DENABLE_WEBSOCKET)
-endif()
-
-######################################################################
 # Aseprite Libraries (in preferred order to be built)
 
 # Disable observable tests
 set(OBSERVABLE_TESTS OFF CACHE BOOL "Compile observable tests")
 add_subdirectory(observable)
 include_directories(observable)
-
-# Disable clip examples and tests
-set(CLIP_EXAMPLES OFF CACHE BOOL "Compile clip examples")
-set(CLIP_TESTS OFF CACHE BOOL "Compile clip tests")
-set(CLIP_X11_PNG_LIBRARY "${PNG_LIBRARY}")
-add_subdirectory(clip)
 
 # Disable undo tests
 set(UNDO_TESTS OFF CACHE BOOL "Compile undo tests")
@@ -123,6 +70,10 @@ if(REQUIRE_CURL)
   add_subdirectory(net)
 endif()
 
+# We need the updater library to check for updates (when
+# ENABLE_UPDATER) or for the app.os object (ENABLE_SCRIPTING).
+add_subdirectory(updater)
+
 if(GEN_EXE)
   add_executable(gen IMPORTED)
   set_target_properties(gen PROPERTIES IMPORTED_LOCATION ${GEN_EXE})
@@ -131,10 +82,6 @@ else()
   add_subdirectory(gen)
   set(GEN_EXE ${CMAKE_BINARY_DIR}/bin/gen)
   set(GEN_DEP gen)
-endif()
-
-if(ENABLE_UPDATER)
-  add_subdirectory(updater)
 endif()
 
 if(ENABLE_STEAM)

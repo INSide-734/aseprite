@@ -429,33 +429,20 @@ public:
         !nativeFileDialog()->isSelected());
     });
 
-#ifdef _WIN32 // Show Tablet section on Windows
+#ifdef LAF_WINDOWS // Show Tablet section on Windows
     {
-      os::TabletAPI tabletAPI = os::instance()->tabletAPI();
-
-      if (tabletAPI == os::TabletAPI::Wintab) {
+      const os::TabletAPI tabletAPI = os::instance()->tabletOptions().api;
+      if (tabletAPI == os::TabletAPI::Wintab)
         tabletApiWintabSystem()->setSelected(true);
-        loadWintabDriver()->setSelected(true);
-        loadWintabDriver2()->setSelected(true);
-      }
-      else if (tabletAPI == os::TabletAPI::WintabPackets) {
+      else if (tabletAPI == os::TabletAPI::WintabPackets)
         tabletApiWintabDirect()->setSelected(true);
-        loadWintabDriver()->setSelected(true);
-        loadWintabDriver2()->setSelected(true);
-      }
-      else {
+      else
         tabletApiWindowsPointer()->setSelected(true);
-        loadWintabDriver()->setSelected(false);
-        loadWintabDriver2()->setSelected(false);
-      }
+      onTabletAPIChange();
 
       tabletApiWindowsPointer()->Click.connect([this](){ onTabletAPIChange(); });
       tabletApiWintabSystem()->Click.connect([this](){ onTabletAPIChange(); });
       tabletApiWintabDirect()->Click.connect([this](){ onTabletAPIChange(); });
-      loadWintabDriver()->Click.connect(
-        [this](){ onLoadWintabChange(loadWintabDriver()->isSelected()); });
-      loadWintabDriver2()->Click.connect(
-        [this](){ onLoadWintabChange(loadWintabDriver2()->isSelected()); });
     }
 #else  // For macOS and Linux
     {
@@ -467,8 +454,6 @@ public:
         }
       }
       sectionTablet()->setVisible(false);
-      loadWintabDriverBox()->setVisible(false);
-      loadWintabDriverBox()->setVisible(false);
     }
 #endif
 
@@ -832,7 +817,7 @@ public:
     m_pref.experimental.nonactiveLayersOpacity(nonactiveLayersOpacity()->getValue());
     m_pref.quantization.rgbmapAlgorithm(m_rgbmapAlgorithmSelector.algorithm());
 
-#ifdef _WIN32
+#ifdef LAF_WINDOWS
     {
       os::TabletAPI tabletAPI = os::TabletAPI::Default;
       std::string tabletStr;
@@ -860,7 +845,10 @@ public:
         ->setInterpretOneFingerGestureAsMouseMovement(
           oneFingerAsMouseMovement()->isSelected());
 
-      os::instance()->setTabletAPI(tabletAPI);
+      os::TabletOptions options;
+      options.api = tabletAPI;
+      options.setCursorFix = m_pref.tablet.setCursorFix();
+      os::instance()->setTabletOptions(options);
     }
 #endif
 
@@ -868,13 +856,13 @@ public:
     ui::set_mouse_cursor_scale(m_pref.cursor.cursorScale());
 
     bool reset_screen = false;
-    int newScreenScale = base::convert_to<int>(screenScale()->getValue());
+    const int newScreenScale = base::convert_to<int>(screenScale()->getValue());
     if (newScreenScale != m_pref.general.screenScale()) {
       m_pref.general.screenScale(newScreenScale);
       reset_screen = true;
     }
 
-    int newUIScale = base::convert_to<int>(uiScale()->getValue());
+    const int newUIScale = base::convert_to<int>(uiScale()->getValue());
     if (newUIScale != m_pref.general.uiScale()) {
       m_pref.general.uiScale(newUIScale);
       ui::set_theme(ui::get_theme(),
@@ -882,7 +870,7 @@ public:
       reset_screen = true;
     }
 
-    bool newGpuAccel = gpuAcceleration()->isSelected();
+    const bool newGpuAccel = gpuAcceleration()->isSelected();
     if (newGpuAccel != m_pref.general.gpuAcceleration()) {
       m_pref.general.gpuAcceleration(newGpuAccel);
       reset_screen = true;
@@ -1018,8 +1006,8 @@ private:
 
   void updateScreenScaling() {
     ui::Manager* manager = ui::Manager::getDefault();
-    os::instance()->setGpuAcceleration(m_pref.general.gpuAcceleration());
-    manager->updateAllDisplaysWithNewScale(m_pref.general.screenScale());
+    manager->updateAllDisplays(m_pref.general.screenScale(),
+                               m_pref.general.gpuAcceleration());
   }
 
   void onApply() {
@@ -1317,9 +1305,20 @@ private:
     if (language()->getItemCount() > 0)
       return;
 
-    // Select current language by lang ID
+    // Check if the current language exists, in other case select English.
     Strings* strings = Strings::instance();
     std::string curLang = strings->currentLanguage();
+    bool found = false;
+    for (const LangInfo& lang : strings->availableLanguages()) {
+      if (lang.id == curLang) {
+        found = true;
+        break;
+      }
+    }
+    if (!found)
+      curLang = Strings::kDefLanguage;
+
+    // Select current language by lang ID
     for (const LangInfo& lang : strings->availableLanguages()) {
       int i = language()->addItem(new LangItem(lang));
       if (lang.id == curLang)
@@ -1771,28 +1770,13 @@ private:
     }
   }
 
-#ifdef _WIN32
+#ifdef LAF_WINDOWS
   void onTabletAPIChange() {
-    if (tabletApiWindowsPointer()->isSelected()) {
-      loadWintabDriver()->setSelected(false);
-      loadWintabDriver2()->setSelected(false);
-    }
-    else if (tabletApiWintabSystem()->isSelected() ||
-             tabletApiWintabDirect()->isSelected()) {
-      loadWintabDriver()->setSelected(true);
-      loadWintabDriver2()->setSelected(true);
-    }
+    const bool pointerApi = tabletApiWindowsPointer()->isSelected();
+    windowsPointerOptions()->setVisible(pointerApi);
+    sectionTablet()->layout();
   }
-  void onLoadWintabChange(bool state) {
-    loadWintabDriver()->setSelected(state);
-    loadWintabDriver2()->setSelected(state);
-    if (state)
-      tabletApiWintabSystem()->setSelected(true);
-    else
-      tabletApiWindowsPointer()->setSelected(true);
-  }
-
-#endif // _WIN32
+#endif // LAF_WINDOWS
 
   Context* m_context;
   Preferences& m_pref;

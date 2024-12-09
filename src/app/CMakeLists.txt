@@ -673,6 +673,7 @@ target_sources(app-lib PRIVATE
   ui/timeline/timeline.cpp
   ui/toolbar.cpp
   ui/user_data_view.cpp
+  ui/window_with_hand.cpp
   ui/workspace.cpp
   ui/workspace_panel.cpp
   ui/workspace_tabs.cpp
@@ -754,6 +755,7 @@ target_link_libraries(app-lib
   archive_static
   fmt
   tinyexpr
+  TinyEXIFstatic
   qoi)
 
 if(ENABLE_WEBP AND WEBP_FOUND)

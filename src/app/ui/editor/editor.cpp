@@ -704,13 +704,23 @@ void Editor::drawOneSpriteUnclippedRect(ui::Graphics* g, const gfx::Rect& sprite
 
     ExtraCelRef extraCel = m_document->extraCel();
     if (extraCel &&
-        extraCel->type() != render::ExtraType::NONE) {
-      m_renderEngine->setExtraImage(
-        extraCel->type(),
-        extraCel->cel(),
-        extraCel->image(),
-        extraCel->blendMode(),
-        m_layer, m_frame);
+        extraCel->type() != render::ExtraType::NONE &&
+        // We render the extra cel if:
+        (// 1) it doesn't contains the brush preview (e.g. the user
+         // is transforming the selection),
+         extraCel->purpose() != ExtraCel::Purpose::BrushPreview
+         // 2) we are drawing the brush preview in a regular editor,
+         || !m_docView->isPreview()
+         // 3) we are drawing the brush preview in a preview editor
+         // and preferences (brushPreviewInPreview) says that we
+         // should do that.
+         || m_docPref.show.brushPreviewInPreview())) {
+      m_renderEngine->setExtraImage(extraCel->type(),
+                                    extraCel->cel(),
+                                    extraCel->image(),
+                                    extraCel->blendMode(),
+                                    m_layer,
+                                    m_frame);
     }
 
     // Render background first (e.g. new ShaderRenderer will paint the
@@ -1509,7 +1519,7 @@ bool Editor::isAutoSelectLayer()
     return App::instance()->contextBar()->isAutoSelectLayer();
 }
 
-gfx::Point Editor::screenToEditor(const gfx::Point& pt)
+gfx::Point Editor::screenToEditor(const gfx::Point& pt) const
 {
   View* view = View::getView(this);
   Rect vp = view->viewportBounds();
@@ -1519,7 +1529,7 @@ gfx::Point Editor::screenToEditor(const gfx::Point& pt)
     m_proj.removeY(pt.y - vp.y + scroll.y - m_padding.y));
 }
 
-gfx::Point Editor::screenToEditorCeiling(const gfx::Point& pt)
+gfx::Point Editor::screenToEditorCeiling(const gfx::Point& pt) const
 {
   View* view = View::getView(this);
   Rect vp = view->viewportBounds();
@@ -1530,7 +1540,7 @@ gfx::Point Editor::screenToEditorCeiling(const gfx::Point& pt)
 }
 
 
-gfx::PointF Editor::screenToEditorF(const gfx::Point& pt)
+gfx::PointF Editor::screenToEditorF(const gfx::Point& pt) const
 {
   View* view = View::getView(this);
   Rect vp = view->viewportBounds();
@@ -1540,7 +1550,7 @@ gfx::PointF Editor::screenToEditorF(const gfx::Point& pt)
     m_proj.removeY<double>(pt.y - vp.y + scroll.y - m_padding.y));
 }
 
-Point Editor::editorToScreen(const gfx::Point& pt)
+Point Editor::editorToScreen(const gfx::Point& pt) const
 {
   View* view = View::getView(this);
   Rect vp = view->viewportBounds();
@@ -1550,7 +1560,7 @@ Point Editor::editorToScreen(const gfx::Point& pt)
     (vp.y - scroll.y + m_padding.y + m_proj.applyY(pt.y)));
 }
 
-gfx::PointF Editor::editorToScreenF(const gfx::PointF& pt)
+gfx::PointF Editor::editorToScreenF(const gfx::PointF& pt) const
 {
   View* view = View::getView(this);
   Rect vp = view->viewportBounds();
@@ -1560,21 +1570,21 @@ gfx::PointF Editor::editorToScreenF(const gfx::PointF& pt)
     (vp.y - scroll.y + m_padding.y + m_proj.applyY<double>(pt.y)));
 }
 
-Rect Editor::screenToEditor(const Rect& rc)
+Rect Editor::screenToEditor(const Rect& rc) const
 {
   return gfx::Rect(
     screenToEditor(rc.origin()),
     screenToEditorCeiling(rc.point2()));
 }
 
-Rect Editor::editorToScreen(const Rect& rc)
+Rect Editor::editorToScreen(const Rect& rc) const
 {
   return gfx::Rect(
     editorToScreen(rc.origin()),
     editorToScreen(rc.point2()));
 }
 
-gfx::RectF Editor::editorToScreenF(const gfx::RectF& rc)
+gfx::RectF Editor::editorToScreenF(const gfx::RectF& rc) const
 {
   return gfx::RectF(
     editorToScreenF(rc.origin()),
@@ -1625,19 +1635,34 @@ Rect Editor::getVisibleSpriteBounds()
 }
 
 // Changes the scroll to see the given point as the center of the editor.
-void Editor::centerInSpritePoint(const gfx::Point& spritePos)
+void Editor::centerInSpritePoint(const gfx::PointF& spritePos)
 {
   HideBrushPreview hide(m_brushPreview);
   View* view = View::getView(this);
   Rect vp = view->viewportBounds();
 
   gfx::Point scroll(
-    m_padding.x - (vp.w/2) + m_proj.applyX(1)/2 + m_proj.applyX(spritePos.x),
-    m_padding.y - (vp.h/2) + m_proj.applyY(1)/2 + m_proj.applyY(spritePos.y));
+    m_padding.x - (vp.w/2) + m_proj.applyX(spritePos.x),
+    m_padding.y - (vp.h/2) + m_proj.applyY(spritePos.y));
 
   updateEditor(false);
   setEditorScroll(scroll);
   invalidate();
+}
+
+void Editor::centerInSpritePoint(const gfx::Point& spritePos)
+{
+  centerInSpritePoint(gfx::PointF(spritePos.x + 0.5,
+                                  spritePos.y + 0.5));
+}
+
+gfx::PointF Editor::spritePointInCenter() const
+{
+  View* view = View::getView(this);
+  Rect vp = view->viewportBounds();
+  gfx::Point screenPos(vp.x + vp.w/2,
+                       vp.y + vp.h/2);
+  return screenToEditorF(screenPos);
 }
 
 void Editor::updateStatusBar()
